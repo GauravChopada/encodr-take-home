@@ -1,5 +1,5 @@
 import { refreshSchema } from "@/lib/schemas";
-import { issueAccessToken, verifyRefreshToken } from "@/lib/server/auth";
+import { findUser, issueAccessToken, verifyRefreshToken } from "@/lib/server/auth";
 import { error, handle, json, readJson, validationError } from "@/lib/server/http";
 
 export async function POST(req: Request) {
@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     if (!parsed.success) return validationError(parsed.error);
 
     const userId = verifyRefreshToken(parsed.data.refreshToken);
-    if (!userId) return error(401, "Invalid or expired refresh token");
+    if (!userId || !findUser(userId)) return error(401, "Invalid or expired refresh token");
 
     return json({ accessToken: issueAccessToken(userId) });
   });

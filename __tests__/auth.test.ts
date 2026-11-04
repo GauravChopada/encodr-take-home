@@ -112,4 +112,9 @@ describe("POST /api/auth/refresh", () => {
   it("returns 400 for a body that is not JSON", async () => {
     expect((await refresh(post("/api/auth/refresh", "not json", true))).status).toBe(400);
   });
+
+  it("rejects a validly signed refresh token whose user no longer exists", async () => {
+    const { refreshToken } = issueTokens("u_ghost");
+    expect((await refresh(post("/api/auth/refresh", { refreshToken }))).status).toBe(401);
+  });
 });

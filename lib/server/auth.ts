@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { User } from "@/lib/types";
 
 // Mock auth for the exercise: no identity provider, no database.
@@ -12,8 +12,12 @@ import type { User } from "@/lib/types";
 
 const ACCESS_TTL_MS = 60_000;
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-// Constant by default so a dev-server reload does not invalidate everyone's tokens.
-const SECRET = process.env.ENCODR_SECRET ?? "dev-secret-change-me";
+// Signing secret: ENCODR_SECRET if set, otherwise a random per-process secret. It is held on globalThis
+// so a dev-server reload (HMR) doesn't log everyone out, and no secret is ever hardcoded in source.
+// A server restart invalidates tokens, which matches the in-memory store losing its data anyway.
+const g = globalThis as typeof globalThis & { __encodrSecret?: string };
+g.__encodrSecret ??= process.env.ENCODR_SECRET || randomBytes(32).toString("hex");
+const SECRET = g.__encodrSecret;
 
 type TokenType = "access" | "refresh";
 
