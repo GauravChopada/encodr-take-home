@@ -9,7 +9,7 @@ starts a **run**, watches its progress stream in live over SSE, and sees the out
 ```bash
 npm install
 npm run dev        # http://localhost:3000
-npm run test:run   # 90 tests, Vitest + React Testing Library
+npm run test:run   # 92 tests, Vitest + React Testing Library
 npm run typecheck  # tsc --noEmit (strict)
 npm run build      # production build
 ```
@@ -46,7 +46,9 @@ the SSE stream is resumable (below). `EncodeRun` is a union on `stage`, so a res
 missing error, does not type-check. The JSON on the wire is unchanged from the contract.
 
 A job's `status` is derived from its latest run on every read and never stored, so the jobs list cannot
-drift from the run. When the stream reports a terminal stage the client invalidates the jobs queries.
+drift from the run. When the stream reports a terminal stage the client invalidates the jobs queries, and the jobs list also
+polls every 2s while any job is RUNNING, so it reflects the terminal status even if you are looking at the
+list when the run finishes.
 
 ### How the SSE stream is authenticated
 
@@ -98,7 +100,7 @@ being used as an access token. Access tokens last 60s so the refresh path is exe
 
 ## Tests: strategy
 
-Ninety tests over a handful of files, aimed at the logic most likely to break:
+92 tests over a handful of files, aimed at the logic most likely to break:
 
 | File | What it pins |
 |---|---|
@@ -109,6 +111,7 @@ Ninety tests over a handful of files, aimed at the logic most likely to break:
 | `sse.test.ts` | replay, resume from `Last-Event-ID`, close on terminal, timers cleared on abort and cancel |
 | `run-stream.test.tsx` | the reducer, and the hook: updates, terminal abort, reconnect rules, unmount and run-id change |
 | `create-job-form.test.tsx` | client validation, server 422 mapped onto the field, success payload |
+| `jobs-polling.test.tsx` | the jobs list keeps refreshing while a job is RUNNING and stops afterwards |
 
 Not tested on purpose: styling, the job-detail page as a whole (I verified it by hand in the browser: live
 progress, results, the failure and retry path, reload mid-run, navigating away, expired and invalid

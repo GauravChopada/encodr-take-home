@@ -19,6 +19,9 @@ export function useJobs() {
   return useQuery({
     queryKey: jobKeys.all,
     queryFn: ({ signal }) => api.get<Job[]>("/api/jobs", signal),
+    // A run finishes on the server whether or not its detail page is open, so keep the list fresh
+    // while anything is RUNNING and stop polling once nothing is.
+    refetchInterval: (query) => (query.state.data?.some((j) => j.status === "RUNNING") ? 2_000 : false),
   });
 }
 
