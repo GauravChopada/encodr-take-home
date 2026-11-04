@@ -1,6 +1,19 @@
-import { error } from "@/lib/server/http";
+import { startRunSchema } from "@/lib/schemas";
+import { error, json, readJson, validationError, withAuth } from "@/lib/server/http";
+import { getJob, startRun } from "@/lib/server/store";
 
-// TODO(candidate): auth-guarded — start an encode run for { jobId } and return { runId } (201).
-export async function POST(_req: Request) {
-  return error(501, "Not implemented: POST /api/runs");
+// Starts a run for a job. If the job already has an active run, returns that run (200) so a
+// double-click can't start two; a new run is 201.
+export async function POST(req: Request) {
+  return withAuth(req, async () => {
+    const parsed = startRunSchema.safeParse(await readJson(req));
+    if (!parsed.success) return validationError(parsed.error);
+
+    const { jobId } = parsed.data;
+    const before = getJob(jobId)?.latestRunId;
+    const record = startRun(jobId);
+    if (!record) return error(404, "Job not found");
+
+    return json({ runId: record.id }, record.id === before ? 200 : 201);
+  });
 }
