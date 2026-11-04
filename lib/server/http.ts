@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { getUserIdFromRequest } from "@/lib/server/auth";
 
 export function json(data: unknown, init?: number | ResponseInit): Response {
@@ -19,16 +20,34 @@ export function requireUser(req: Request): string {
   return userId;
 }
 
-/** Wraps a handler so a thrown Response (e.g. from requireUser) becomes the actual response. */
-export async function withAuth(
-  req: Request,
-  handler: (userId: string) => Promise<Response> | Response,
-): Promise<Response> {
+/** Runs a handler, turning a thrown Response (e.g. from requireUser or readJson) into the response. */
+export async function handle(fn: () => Promise<Response> | Response): Promise<Response> {
   try {
-    const userId = requireUser(req);
-    return await handler(userId);
+    return await fn();
   } catch (e) {
     if (e instanceof Response) return e;
     throw e;
   }
+}
+
+/** Wraps a handler so unauthenticated requests get a 401 before it runs. */
+export function withAuth(
+  req: Request,
+  handler: (userId: string) => Promise<Response> | Response,
+): Promise<Response> {
+  return handle(() => handler(requireUser(req)));
+}
+
+/** Parses the JSON body; throws a 400 Response if it is missing or not valid JSON. */
+export async function readJson(req: Request): Promise<unknown> {
+  try {
+    return await req.json();
+  } catch {
+    throw error(400, "Request body must be valid JSON");
+  }
+}
+
+/** 422 in the shape the client maps onto form fields. */
+export function validationError(err: z.ZodError): Response {
+  return json({ detail: "Validation failed", fieldErrors: z.flattenError(err).fieldErrors }, 422);
 }
