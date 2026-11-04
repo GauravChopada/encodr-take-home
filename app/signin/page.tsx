@@ -43,8 +43,11 @@ export default function SignInPage() {
 
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
         <div>
-          <label className="mb-1 block text-sm font-medium">Email</label>
+          <label htmlFor="email" className="mb-1 block text-sm font-medium">
+            Email
+          </label>
           <input
+            id="email"
             {...register("email")}
             type="email"
             className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
@@ -54,8 +57,11 @@ export default function SignInPage() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium">Password</label>
+          <label htmlFor="password" className="mb-1 block text-sm font-medium">
+            Password
+          </label>
           <input
+            id="password"
             {...register("password")}
             type="password"
             className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
