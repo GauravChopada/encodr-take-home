@@ -1,12 +1,17 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client/api";
+import type { CreateJobInput } from "@/lib/schemas";
 import type { EncodeRun, Job } from "@/lib/types";
 
 export const jobKeys = {
   all: ["jobs"] as const,
   detail: (id: string) => ["jobs", id] as const,
+};
+
+export const runKeys = {
+  detail: (id: string) => ["runs", id] as const,
 };
 
 // Two worked examples to show the intended React Query pattern:
@@ -24,13 +29,35 @@ export function useJob(id: string) {
   });
 }
 
-// TODO(candidate): a mutation to create a job (POST /api/jobs). On success, invalidate jobKeys.all
-// so the list refetches.
-//
-// TODO(candidate): a mutation to start a run (POST /api/runs → { runId }).
-//
-// TODO(candidate): a helper to fetch a single run (GET /api/runs/:id) — useful for reading the
-// result once the stream reports COMPLETED.
+/** Creates a job; the jobs list (and any job detail) refetches on success. */
+export function useCreateJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateJobInput) => api.post<Job>("/api/jobs", input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: jobKeys.all }),
+  });
+}
+
+/**
+ * Starts (or, for a job that is already running, re-attaches to) a run. Invalidating `jobKeys.all`
+ * also refreshes every job detail, since `["jobs", id]` sits under `["jobs"]`.
+ */
+export function useStartRun() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ jobId }: { jobId: string }) => api.post<{ runId: string }>("/api/runs", { jobId }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: jobKeys.all }),
+  });
+}
+
+/** Snapshot of a run; the SSE stream drives live updates, this supplies the result once it is done. */
+export function useRun(runId: string | undefined) {
+  return useQuery({
+    queryKey: runKeys.detail(runId ?? ""),
+    queryFn: ({ signal }) => api.get<EncodeRun>(`/api/runs/${runId}`, signal),
+    enabled: Boolean(runId),
+  });
+}
 
 /** Imperative one-shot fetch of a run's current state. */
 export function fetchRun(runId: string) {

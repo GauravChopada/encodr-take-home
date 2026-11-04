@@ -2,15 +2,9 @@
 
 import Link from "next/link";
 import { useJobs } from "@/lib/client/hooks";
+import { CreateJobForm } from "@/components/create-job-form";
 import { StatusBadge } from "@/components/status-badge";
 
-// Starting point: this renders the job list once GET /api/jobs works.
-//
-// TODO(candidate):
-//  - Build the "create job" form (React Hook Form + createJobSchema). Validate the source URL,
-//    show inline field errors, map server-side (422) errors back onto the right fields, and make
-//    the new job appear without a full reload (invalidate the jobs query).
-//  - Wire each list row to its detail page at /jobs/[id].
 export default function JobsPage() {
   const jobs = useJobs();
 
@@ -18,9 +12,7 @@ export default function JobsPage() {
     <div className="space-y-8">
       <section>
         <h1 className="mb-4 text-xl font-semibold">New encode job</h1>
-        <p className="rounded-md border border-dashed border-neutral-300 p-4 text-sm text-neutral-500">
-          TODO(candidate): create-job form goes here (source URL + optional title, Zod-validated).
-        </p>
+        <CreateJobForm />
       </section>
 
       <section>
@@ -28,7 +20,7 @@ export default function JobsPage() {
         {jobs.isLoading && <p className="text-sm text-neutral-500">Loading jobs…</p>}
         {jobs.isError && (
           <div className="text-sm text-red-600">
-            Couldn’t load jobs (is GET /api/jobs implemented?).{" "}
+            Couldn’t load jobs.{" "}
             <button onClick={() => jobs.refetch()} className="underline">
               Retry
             </button>
