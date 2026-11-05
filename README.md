@@ -9,7 +9,7 @@ starts a **run**, watches its progress stream in live over SSE, and sees the out
 ```bash
 npm install
 npm run dev        # http://localhost:3000
-npm run test:run   # 115 tests, Vitest + React Testing Library
+npm run test:run   # 116 tests, Vitest + React Testing Library
 npm run typecheck  # tsc --noEmit (strict)
 npm run build      # production build
 ```
@@ -112,7 +112,7 @@ cache ends up equal to the server's list.
 
 ## Tests: strategy
 
-115 tests over a dozen files, aimed at the logic most likely to break:
+116 tests over a dozen files, aimed at the logic most likely to break:
 
 | File | What it pins |
 |---|---|

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/client/api";
+import { deriveTitle } from "@/lib/job-title";
 import type { CreateJobInput } from "@/lib/schemas";
 import type { EncodeRun, Job } from "@/lib/types";
 
@@ -53,7 +54,7 @@ export function useCreateJob() {
       const sourceUrl = input.sourceUrl.trim();
       const optimistic: Job = {
         id: `${OPTIMISTIC_ID_PREFIX}${crypto.randomUUID()}`,
-        title: input.title?.trim() || sourceUrl,
+        title: input.title?.trim() || deriveTitle(sourceUrl),
         sourceUrl,
         status: "NEW",
         createdAt: new Date().toISOString(),

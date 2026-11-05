@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { deriveTitle } from "@/lib/job-title";
 import {
   type ActiveStage,
   type EncodeResult,
@@ -141,17 +142,6 @@ export function createJob(input: { sourceUrl: string; title?: string }): Job {
   };
   jobs.set(id, job);
   return job;
-}
-
-function deriveTitle(sourceUrl: string): string {
-  try {
-    const path = new URL(sourceUrl).pathname.replace(/\/+$/, "");
-    const last = path.split("/").filter(Boolean).pop();
-    // Keep a derived title within the same 80 character limit the form enforces on typed titles.
-    return last ? decodeURIComponent(last).slice(0, 80) : "Untitled encode";
-  } catch {
-    return "Untitled encode";
-  }
 }
 
 /** Starts a run, or returns the job's active run if it already has one (double-click safe). */

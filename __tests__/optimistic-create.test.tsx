@@ -67,6 +67,17 @@ describe("optimistic create", () => {
     expect(result.current.jobs.data?.some(isOptimisticJob)).toBe(false);
   });
 
+  it("titles an untitled optimistic job the way the server will, so the row does not change text on confirm", async () => {
+    const release = serveJobs({ lists: [[]], post: () => json(201, job("j_new", "clip.mp4")) });
+    const { result } = renderHook(() => ({ jobs: useJobs(), create: useCreateJob() }), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.jobs.isSuccess).toBe(true));
+
+    act(() => result.current.create.mutate({ sourceUrl: input.sourceUrl, title: "" }));
+    await waitFor(() => expect(result.current.jobs.data).toHaveLength(1));
+    expect(result.current.jobs.data![0].title).toBe("clip.mp4");
+    release();
+  });
+
   it("rolls back only the optimistic job when the server rejects it", async () => {
     const release = serveJobs({
       lists: [[job("j_old", "old.mp4")]],
