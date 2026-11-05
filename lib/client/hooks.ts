@@ -32,12 +32,38 @@ export function useJob(id: string) {
   });
 }
 
-/** Creates a job; the jobs list (and any job detail) refetches on success. */
+const OPTIMISTIC_ID_PREFIX = "optimistic-";
+
+/** A job that exists only in the client cache until the server confirms it. */
+export function isOptimisticJob(job: Job): boolean {
+  return job.id.startsWith(OPTIMISTIC_ID_PREFIX);
+}
+
+/**
+ * Creates a job. The new job shows up in the list immediately (optimistic update) and is removed again
+ * if the server rejects it; either way the list refetches afterwards, so the cache ends up matching the
+ * server. Rollback removes only the optimistic entry, so it can't clobber a refetch that landed meanwhile.
+ */
 export function useCreateJob() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateJobInput) => api.post<Job>("/api/jobs", input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: jobKeys.all }),
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: jobKeys.all }); // don't let an in-flight fetch overwrite us
+      const sourceUrl = input.sourceUrl.trim();
+      const optimistic: Job = {
+        id: `${OPTIMISTIC_ID_PREFIX}${crypto.randomUUID()}`,
+        title: input.title?.trim() || sourceUrl,
+        sourceUrl,
+        status: "NEW",
+        createdAt: new Date().toISOString(),
+      };
+      queryClient.setQueryData<Job[]>(jobKeys.all, (old) => [optimistic, ...(old ?? [])]);
+    },
+    onError: () => {
+      queryClient.setQueryData<Job[]>(jobKeys.all, (old) => old?.filter((j) => !isOptimisticJob(j)));
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: jobKeys.all }),
   });
 }
 

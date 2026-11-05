@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useJobs } from "@/lib/client/hooks";
+import { isOptimisticJob, useJobs } from "@/lib/client/hooks";
 import { CreateJobForm } from "@/components/create-job-form";
 import { StatusBadge } from "@/components/status-badge";
 
@@ -30,20 +30,33 @@ export default function JobsPage() {
           <p className="text-sm text-neutral-500">No jobs yet.</p>
         )}
         <ul className="divide-y divide-neutral-200 rounded-md border border-neutral-200">
-          {jobs.data?.map((job) => (
-            <li key={job.id}>
-              <Link
-                href={`/jobs/${job.id}`}
-                className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-neutral-50"
-              >
+          {jobs.data?.map((job) =>
+            isOptimisticJob(job) ? (
+              // Not saved yet, so there is no detail page to link to.
+              <li key={job.id} className="flex items-center justify-between gap-3 px-4 py-3 opacity-60">
                 <div className="min-w-0">
                   <p className="truncate font-medium">{job.title}</p>
                   <p className="truncate text-xs text-neutral-500">{job.sourceUrl}</p>
                 </div>
-                <StatusBadge value={job.status} />
-              </Link>
-            </li>
-          ))}
+                <span className="inline-flex items-center rounded-full bg-neutral-200 px-2.5 py-0.5 text-xs font-medium text-neutral-700">
+                  Creating...
+                </span>
+              </li>
+            ) : (
+              <li key={job.id}>
+                <Link
+                  href={`/jobs/${job.id}`}
+                  className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-neutral-50"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{job.title}</p>
+                    <p className="truncate text-xs text-neutral-500">{job.sourceUrl}</p>
+                  </div>
+                  <StatusBadge value={job.status} />
+                </Link>
+              </li>
+            ),
+          )}
         </ul>
       </section>
     </div>
