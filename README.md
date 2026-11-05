@@ -10,6 +10,7 @@ starts a **run**, watches its progress stream in live over SSE, and sees the out
 npm install
 npm run dev        # http://localhost:3000
 npm run test:run   # 116 tests, Vitest + React Testing Library
+npm run test:e2e   # 3 Playwright tests against the real app (see below)
 npm run typecheck  # tsc --noEmit (strict)
 npm run build      # production build
 ```
@@ -128,9 +129,22 @@ cache ends up equal to the server's list.
 | `job-detail.test.tsx` | the detail page: 404 vs other load errors, the reconnecting notice, reloading results that failed to load |
 | `contract.test.ts` | `parseRunEvent` validation and the type-level guarantees (`RunEvent`, `ACTIVE_STAGES`, `isTerminalStage`) |
 
-Not covered by automated tests: styling, and the full browser flow end to end (there is no Playwright test; I
-walked it by hand in the browser: live progress, results, the failure and retry path, reload mid-run,
-navigating away, expired and invalid tokens).
+Not covered by automated tests: styling, and a few browser-only behaviours I checked by hand (reload mid-run,
+navigating away cancelling the stream, expired and invalid tokens, the optimistic row with a slow server).
+
+### End-to-end tests (Playwright, stretch)
+
+```bash
+npx playwright install chromium   # one-time browser download
+npm run test:e2e                  # starts `npm run dev` itself, or reuses one already on :3000
+```
+
+Three tests in `e2e/encodr.spec.ts` drive the real app in Chromium, using the real server, SSE stream and
+auth (nothing mocked): signed-out redirect and wrong password; the **happy path** (client validation, create a
+job, watch the live log, results with renditions and the warning, then the jobs list showing COMPLETED); and
+the **failure path** (`corrupt.mp4` fails partway with its error, never reaches PACKAGING, and Retry starts a
+new run). A run really takes ~31s, so they use real time and take about 35s in parallel. They are kept
+out of `npm run test:run`, and `npm install && npm run dev` is unchanged.
 
 ## Assumptions
 
@@ -147,5 +161,4 @@ navigating away, expired and invalid tokens).
 
 - Refresh-token rotation and revocation (the refresh token is currently stateless and reusable until expiry).
 - Move tokens to HttpOnly cookies and guard the dashboard on the server.
-- A Playwright happy-path test (the brief's last optional stretch item).
 - A real store (the state-machine inputs would become persisted timestamps) and a real worker.

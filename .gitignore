@@ -8,3 +8,5 @@ next-env.d.ts
 *.log
 .env*.local
 /coverage
+/test-results
+/playwright-report
