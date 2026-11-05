@@ -9,12 +9,12 @@ starts a **run**, watches its progress stream in live over SSE, and sees the out
 ```bash
 npm install
 npm run dev        # http://localhost:3000
-npm run test:run   # 92 tests, Vitest + React Testing Library
+npm run test:run   # 115 tests, Vitest + React Testing Library
 npm run typecheck  # tsc --noEmit (strict)
 npm run build      # production build
 ```
 
-Requires **Node 20+**. **Login:** `demo@encodr.dev` / `password123`.
+Requires **Node 20+** (the scaffold's toolchain, Vite 8 and jsdom 28, needs 20.19 or newer). **Login:** `demo@encodr.dev` / `password123`.
 
 To see the error path, create a job from `https://cdn.example.com/videos/corrupt.mp4`: it fails about
 20 seconds in, shows the error, and **Retry** starts a new run. Any other `http(s)` URL ending in a media
@@ -74,6 +74,10 @@ harmless. Details that matter (from reading the library source):
 - The library only retries when `onclose`/`onerror` throw. A close before a terminal event throws (so it
   reconnects); after COMPLETED/FAILED the hook aborts the connection itself.
 
+If the connection drops mid-run the page says "Connection lost. Reconnecting..." and the library retries
+with exponential backoff (1s, 2s, 4s, capped at 10s, reset once events flow again). Frames are validated at
+the boundary (`parseRunEvent`), so a malformed frame is ignored instead of crashing the stream.
+
 ### Resume after a disconnect (stretch)
 
 Each SSE event is a pure function of a **tick number** (one per second since the run started) and is sent
@@ -98,9 +102,17 @@ All JSON calls and the SSE connection go through `authedFetch`:
 Tokens are `base64url(payload).base64url(HMAC-SHA256)` with `{ sub, typ, exp }`; `typ` stops a refresh token
 being used as an access token. Access tokens last 60s so the refresh path is exercised constantly.
 
+### Optimistic create with rollback (stretch)
+
+`useCreateJob` adds the job to the cached list in `onMutate` (after cancelling in-flight list fetches so they
+cannot overwrite it), shown as "Creating..." and not linkable because it has no detail page yet. On a server
+rejection `onError` removes just the optimistic entry (so other rows and any refetch that landed in the
+meantime are untouched) and the 422 messages appear on the form fields. `onSettled` always refetches, so the
+cache ends up equal to the server's list.
+
 ## Tests: strategy
 
-92 tests over a handful of files, aimed at the logic most likely to break:
+115 tests over a dozen files, aimed at the logic most likely to break:
 
 | File | What it pins |
 |---|---|
@@ -109,13 +121,16 @@ being used as an access token. Access tokens last 60s so the refresh path is exe
 | `auth.test.ts` | token round trip, expiry, tampering, token-type confusion, malformed headers, login/refresh routes |
 | `routes.test.ts`, `schemas.test.ts` | 401/404/400/422 behaviour, field errors, whitespace, URL rules |
 | `sse.test.ts` | replay, resume from `Last-Event-ID`, close on terminal, timers cleared on abort and cancel |
-| `run-stream.test.tsx` | the reducer, and the hook: updates, terminal abort, reconnect rules, unmount and run-id change |
+| `run-stream.test.tsx` | the reducer, and the hook: updates, terminal abort, reconnect rules and backoff, unmount and run-id change, and the stream connection's 401 -> refresh -> retry through the shared fetch |
 | `create-job-form.test.tsx` | client validation, server 422 mapped onto the field, success payload |
 | `jobs-polling.test.tsx` | the jobs list keeps refreshing while a job is RUNNING and stops afterwards |
+| `optimistic-create.test.tsx` | the new job appears at once, is swapped for the server's, and rolls back (keeping other rows) on a 422; a pending job is not linkable |
+| `job-detail.test.tsx` | the detail page: 404 vs other load errors, the reconnecting notice, reloading results that failed to load |
+| `contract.test.ts` | `parseRunEvent` validation and the type-level guarantees (`RunEvent`, `ACTIVE_STAGES`, `isTerminalStage`) |
 
-Not tested on purpose: styling, the job-detail page as a whole (I verified it by hand in the browser: live
-progress, results, the failure and retry path, reload mid-run, navigating away, expired and invalid
-tokens), and the API surface beyond the contract.
+Not covered by automated tests: styling, and the full browser flow end to end (there is no Playwright test; I
+walked it by hand in the browser: live progress, results, the failure and retry path, reload mid-run,
+navigating away, expired and invalid tokens).
 
 ## Assumptions
 
@@ -132,5 +147,5 @@ tokens), and the API surface beyond the contract.
 
 - Refresh-token rotation and revocation (the refresh token is currently stateless and reusable until expiry).
 - Move tokens to HttpOnly cookies and guard the dashboard on the server.
-- Optimistic create with rollback, and a Playwright happy-path test.
+- A Playwright happy-path test (the brief's last optional stretch item).
 - A real store (the state-machine inputs would become persisted timestamps) and a real worker.
