@@ -12,8 +12,11 @@ export type Stage =
   | "COMPLETED"
   | "FAILED";
 
+export type ActiveStage = Exclude<Stage, "COMPLETED" | "FAILED">;
+export type TerminalStage = Extract<Stage, "COMPLETED" | "FAILED">;
+
 /** Non-terminal stages, in order. The encode run walks these then lands on a terminal stage. */
-export const ACTIVE_STAGES: Stage[] = [
+export const ACTIVE_STAGES: readonly ActiveStage[] = [
   "QUEUED",
   "DOWNLOADING",
   "PROBING",
@@ -21,10 +24,10 @@ export const ACTIVE_STAGES: Stage[] = [
   "PACKAGING",
 ];
 
-export const TERMINAL_STAGES: Stage[] = ["COMPLETED", "FAILED"];
+export const TERMINAL_STAGES: readonly TerminalStage[] = ["COMPLETED", "FAILED"];
 
-export function isTerminalStage(stage: Stage): boolean {
-  return TERMINAL_STAGES.includes(stage);
+export function isTerminalStage(stage: Stage): stage is TerminalStage {
+  return stage === "COMPLETED" || stage === "FAILED";
 }
 
 export interface User {
@@ -55,8 +58,6 @@ export interface EncodeResult {
   warnings: string[];
 }
 
-export type ActiveStage = Exclude<Stage, "COMPLETED" | "FAILED">;
-
 interface EncodeRunBase {
   id: string;
   jobId: string;
@@ -72,10 +73,30 @@ export type EncodeRun =
   | (EncodeRunBase & { stage: "COMPLETED"; progressPct: 100; result: EncodeResult })
   | (EncodeRunBase & { stage: "FAILED"; progressPct: number; error: string });
 
-/** Shape of each Server-Sent Event streamed from /api/runs/:id/events. */
-export interface RunEvent {
-  stage: Stage;
-  progressPct: number;
-  message: string;
-  error?: string;
+/**
+ * Shape of each Server-Sent Event streamed from /api/runs/:id/events.
+ * Like EncodeRun it is a union, so a FAILED event always carries its error.
+ */
+export type RunEvent =
+  | { stage: ActiveStage | "COMPLETED"; progressPct: number; message: string }
+  | { stage: "FAILED"; progressPct: number; message: string; error: string };
+
+const ALL_STAGES: readonly Stage[] = [...ACTIVE_STAGES, ...TERMINAL_STAGES];
+
+/** Runtime check at the network boundary: returns a well-formed RunEvent or null. */
+export function parseRunEvent(raw: string): RunEvent | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (typeof value !== "object" || value === null) return null;
+  const { stage, progressPct, message, error } = value as Record<string, unknown>;
+  if (typeof stage !== "string" || !ALL_STAGES.some((s) => s === stage)) return null;
+  if (typeof progressPct !== "number" || typeof message !== "string") return null;
+  if (stage === "FAILED") {
+    return typeof error === "string" ? { stage, progressPct, message, error } : null;
+  }
+  return { stage: stage as ActiveStage | "COMPLETED", progressPct, message };
 }

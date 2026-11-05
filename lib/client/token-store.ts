@@ -1,5 +1,5 @@
 // Single source of truth for auth tokens on the client.
-// Kept outside React so the bare `apiFetch` wrapper and the auth context can share it without
+// Kept outside React so the bare `authedFetch` wrapper and the auth context can share it without
 // a circular import, and so concurrent requests read the same token.
 
 const ACCESS_KEY = "encodr.accessToken";

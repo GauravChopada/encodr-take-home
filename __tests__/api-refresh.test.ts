@@ -87,6 +87,11 @@ describe("silent refresh", () => {
     expect(logouts).toBe(0);
   });
 
+  it("falls back to a generic message when an error body has a non-string detail", async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(respond(500, { detail: 42 })));
+    await expect(api.get("/api/a")).rejects.toMatchObject({ status: 500, message: "Request failed" });
+  });
+
   it("does not try to refresh when a login attempt returns 401", async () => {
     fetchMock.mockImplementation(() => Promise.resolve(respond(401, { detail: "Invalid email or password" })));
     await expect(api.post("/api/auth/login", { email: "a", password: "b" })).rejects.toMatchObject({

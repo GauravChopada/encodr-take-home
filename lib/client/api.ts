@@ -20,18 +20,30 @@ export class ApiError extends Error {
 /** Fired when auth is unrecoverable. The auth provider listens for this and logs the user out. */
 export const AUTH_LOGOUT_EVENT = "encodr:logout";
 
+function isFieldErrors(value: unknown): value is Record<string, string[]> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Object.values(value).every((v) => Array.isArray(v) && v.every((m) => typeof m === "string"))
+  );
+}
+
 async function parseError(res: Response): Promise<ApiError> {
   let detail = res.statusText || "Request failed";
   let fieldErrors: Record<string, string[]> | undefined;
+  let body: unknown;
   try {
-    const body = await res.json();
-    if (body?.detail) detail = body.detail;
-    if (body?.fieldErrors) {
-      fieldErrors = body.fieldErrors;
-      detail = "Validation failed";
-    }
+    body = await res.json();
   } catch {
     /* non-JSON body */
+  }
+  if (typeof body === "object" && body !== null) {
+    const parsed = body as { detail?: unknown; fieldErrors?: unknown };
+    if (typeof parsed.detail === "string" && parsed.detail) detail = parsed.detail;
+    if (isFieldErrors(parsed.fieldErrors)) {
+      fieldErrors = parsed.fieldErrors;
+      detail = "Validation failed";
+    }
   }
   return new ApiError(res.status, detail, fieldErrors);
 }

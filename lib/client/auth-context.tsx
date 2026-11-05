@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace("/signin");
   }, [router]);
 
-  // If apiFetch can't recover auth it dispatches AUTH_LOGOUT_EVENT — react globally.
+  // If authedFetch can't recover auth it dispatches AUTH_LOGOUT_EVENT — react globally.
   useEffect(() => {
     const handler = () => logout();
     window.addEventListener(AUTH_LOGOUT_EVENT, handler);

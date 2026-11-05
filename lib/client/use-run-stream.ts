@@ -3,7 +3,7 @@
 import { useEffect, useReducer, useRef } from "react";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { authedFetch } from "@/lib/client/api";
-import { isTerminalStage, type RunEvent, type Stage } from "@/lib/types";
+import { isTerminalStage, parseRunEvent, type RunEvent, type Stage } from "@/lib/types";
 
 export interface RunStreamState {
   stage: Stage | null;
@@ -33,7 +33,7 @@ export function reduceRunEvent(state: RunStreamState, event: RunEvent, id: numbe
     stage: event.stage,
     progressPct: event.progressPct,
     log: [...state.log, event.message],
-    error: event.stage === "FAILED" ? (event.error ?? event.message) : state.error,
+    error: event.stage === "FAILED" ? event.error : state.error,
     connected: true,
     done: isTerminalStage(event.stage),
     lastId: id,
@@ -101,7 +101,8 @@ export function useRunStream(runId: string | null, onTerminal?: () => void): Run
       },
       onmessage(message) {
         if (controller.signal.aborted) return;
-        const event = JSON.parse(message.data) as RunEvent;
+        const event = parseRunEvent(message.data);
+        if (!event) return; // ignore a malformed frame rather than crash the stream
         dispatch({ type: "event", event, id: Number(message.id) });
         if (isTerminalStage(event.stage) && !terminal) {
           terminal = true;

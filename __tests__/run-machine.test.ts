@@ -115,6 +115,13 @@ describe("derived job status and run start", () => {
   });
 });
 
+describe("derived titles", () => {
+  it("keeps a title derived from a very long file name within the 80 character limit", () => {
+    const job = createJob({ sourceUrl: `https://cdn.example.com/videos/${"a".repeat(150)}.mp4` });
+    expect(job.title.length).toBeLessThanOrEqual(80);
+  });
+});
+
 describe("EncodeRun type", () => {
   it("rejects a FAILED run without an error", () => {
     // @ts-expect-error FAILED requires an error message

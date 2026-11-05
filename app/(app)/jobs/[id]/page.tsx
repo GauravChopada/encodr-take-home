@@ -49,7 +49,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const running = Boolean(runId) && !failed && !completed;
   const failureMessage = stream.error ?? (snapshot?.stage === "FAILED" ? snapshot.error : null);
   const result = snapshot?.stage === "COMPLETED" ? snapshot.result : null;
-  const currentIndex = stage ? ACTIVE_STAGES.indexOf(stage as (typeof ACTIVE_STAGES)[number]) : -1;
+  const currentIndex = ACTIVE_STAGES.findIndex((s) => s === stage);
 
   const startLabel = failed ? "Retry" : completed ? "Run again" : "Start encode";
 

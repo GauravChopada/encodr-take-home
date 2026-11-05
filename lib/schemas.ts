@@ -40,7 +40,7 @@ export const createJobSchema = z.object({
   title: z
     .string()
     .trim()
-    .max(80, "Keep the title under 80 characters")
+    .max(80, "Keep the title to 80 characters or fewer")
     .optional()
     .or(z.literal("")),
 });

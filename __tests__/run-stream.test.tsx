@@ -9,7 +9,11 @@ vi.mock("@microsoft/fetch-event-source", () => ({ fetchEventSource: vi.fn() }));
 type Options = Parameters<typeof fetchEventSource>[1];
 const mockedFetch = vi.mocked(fetchEventSource);
 
-const ev = (stage: RunEvent["stage"], progressPct: number, message = `${stage} ${progressPct}%`): RunEvent => ({
+const ev = (
+  stage: Exclude<RunEvent["stage"], "FAILED">,
+  progressPct: number,
+  message = `${stage} ${progressPct}%`,
+): RunEvent => ({
   stage,
   progressPct,
   message,
@@ -62,6 +66,13 @@ describe("useRunStream", () => {
     expect(calls[0].url).toBe("/api/runs/r_1/events");
     expect(calls[0].options.openWhenHidden).toBe(true);
     expect(typeof calls[0].options.fetch).toBe("function");
+  });
+
+  it("ignores a malformed frame instead of throwing", () => {
+    const { result } = renderHook(() => useRunStream("r_1"));
+    act(() => calls[0].options.onmessage?.({ id: "1", event: "", data: "not json" }));
+    expect(result.current.stage).toBeNull();
+    expect(result.current.log).toEqual([]);
   });
 
   it("does not connect without a run id", () => {

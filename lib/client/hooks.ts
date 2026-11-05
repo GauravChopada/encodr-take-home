@@ -61,8 +61,3 @@ export function useRun(runId: string | undefined) {
     enabled: Boolean(runId),
   });
 }
-
-/** Imperative one-shot fetch of a run's current state. */
-export function fetchRun(runId: string) {
-  return api.get<EncodeRun>(`/api/runs/${runId}`);
-}

@@ -32,6 +32,12 @@ describe("createJobSchema title", () => {
     expect(createJobSchema.safeParse({ sourceUrl, title: "x".repeat(81) }).success).toBe(false);
   });
 
+  it("accepts exactly 80 characters and words the limit accurately", () => {
+    expect(createJobSchema.safeParse({ sourceUrl, title: "x".repeat(80) }).success).toBe(true);
+    const result = createJobSchema.safeParse({ sourceUrl, title: "x".repeat(81) });
+    expect(!result.success && result.error.issues[0].message).toBe("Keep the title to 80 characters or fewer");
+  });
+
   it("accepts a whitespace-only title", () => {
     expect(createJobSchema.safeParse({ sourceUrl, title: "   " }).success).toBe(true);
   });
