@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { fetchEventSource, type EventSourceMessage } from "@microsoft/fetch-event-source";
 import type { RunEvent } from "@/lib/types";
 import { initialRunStreamState, reduceRunEvent, useRunStream } from "@/lib/client/use-run-stream";
+import { clearTokens, getAccessToken, setTokens } from "@/lib/client/token-store";
 
 vi.mock("@microsoft/fetch-event-source", () => ({ fetchEventSource: vi.fn() }));
 
@@ -125,5 +126,59 @@ describe("useRunStream", () => {
     expect(calls[0].options.signal?.aborted).toBe(true);
     expect(calls[1].url).toBe("/api/runs/r_2/events");
     expect(result.current).toEqual(initialRunStreamState);
+  });
+
+  it("backs off exponentially between retries, capped at 10s, and resets once events flow again", () => {
+    renderHook(() => useRunStream("r_1"));
+    const { options } = calls[0];
+    const delays = [1, 2, 3, 4, 5, 6].map(() => options.onerror?.(new Error("network")));
+    expect(delays).toEqual([1000, 2000, 4000, 8000, 10_000, 10_000]);
+    act(() => options.onmessage?.(frame(1, ev("QUEUED", 3))));
+    expect(options.onerror?.(new Error("network"))).toBe(1000);
+  });
+
+  it("marks the stream as fatally failed when the connection gives up", async () => {
+    mockedFetch.mockImplementationOnce(() => Promise.reject(new Error("Live updates unavailable (404)")));
+    const { result } = renderHook(() => useRunStream("r_1"));
+    await waitFor(() => expect(result.current.error).toBe("Live updates unavailable (404)"));
+    expect(result.current.connected).toBe(false);
+  });
+});
+
+describe("the stream's connection auth", () => {
+  const sent: { path: string; auth: string | null }[] = [];
+  const fetchStub = vi.fn<typeof fetch>();
+
+  beforeEach(() => {
+    sent.length = 0;
+    fetchStub.mockReset();
+    fetchStub.mockImplementation(async (path, init) => {
+      const auth = new Headers(init?.headers).get("authorization");
+      sent.push({ path: String(path), auth });
+      if (path === "/api/auth/refresh") return new Response(JSON.stringify({ accessToken: "T2" }), { status: 200 });
+      return auth === "Bearer T2"
+        ? new Response("", { status: 200, headers: { "content-type": "text/event-stream" } })
+        : new Response(JSON.stringify({ detail: "expired" }), { status: 401 });
+    });
+    vi.stubGlobal("fetch", fetchStub);
+    clearTokens();
+    setTokens({ accessToken: "T1", refreshToken: "R1" });
+    mockedFetch.mockReset();
+    mockedFetch.mockImplementation(() => new Promise<void>(() => undefined));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("refreshes an expired token and retries the stream request through the shared fetch", async () => {
+    renderHook(() => useRunStream("r_1"));
+    const connect = mockedFetch.mock.calls[0][1].fetch!;
+    const res = await connect("/api/runs/r_1/events", { headers: { accept: "text/event-stream", "last-event-id": "7" } });
+
+    expect(res.status).toBe(200);
+    expect(sent.map((s) => [s.path, s.auth])).toEqual([
+      ["/api/runs/r_1/events", "Bearer T1"],
+      ["/api/auth/refresh", null],
+      ["/api/runs/r_1/events", "Bearer T2"],
+    ]);
+    expect(getAccessToken()).toBe("T2");
   });
 });

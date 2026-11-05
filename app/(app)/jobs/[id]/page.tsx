@@ -3,6 +3,7 @@
 import { use, useCallback } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "@/lib/client/api";
 import { jobKeys, runKeys, useJob, useRun, useStartRun } from "@/lib/client/hooks";
 import { useRunStream } from "@/lib/client/use-run-stream";
 import { ACTIVE_STAGES } from "@/lib/types";
@@ -30,9 +31,15 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   if (jobQuery.isLoading) return <p className="text-sm text-neutral-500">Loading job...</p>;
   if (jobQuery.isError || !jobQuery.data) {
+    const notFound = jobQuery.error instanceof ApiError && jobQuery.error.status === 404;
     return (
       <div className="text-sm text-red-600">
-        Job not found.{" "}
+        {notFound ? "Job not found." : "Could not load this job."}{" "}
+        {!notFound && (
+          <button onClick={() => jobQuery.refetch()} className="underline">
+            Try again
+          </button>
+        )}{" "}
         <Link href="/jobs" className="underline">
           Back to jobs
         </Link>
@@ -50,6 +57,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const failureMessage = stream.error ?? (snapshot?.stage === "FAILED" ? snapshot.error : null);
   const result = snapshot?.stage === "COMPLETED" ? snapshot.result : null;
   const currentIndex = ACTIVE_STAGES.findIndex((s) => s === stage);
+
+  // Had live events, then the connection dropped: the library is retrying with backoff.
+  const reconnecting = !stream.connected && !stream.done && stream.lastId >= 0;
 
   const startLabel = failed ? "Retry" : completed ? "Run again" : "Start encode";
 
@@ -113,6 +123,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             ))}
           </ol>
 
+          {reconnecting && (
+            <p role="status" className="text-sm text-amber-700 dark:text-amber-400">
+              Connection lost. Reconnecting...
+            </p>
+          )}
+
           {stream.error && !failed && (
             <p role="alert" className="text-sm text-red-600">
               {stream.error}. Reload the page to retry.
@@ -147,6 +163,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       {completed &&
         (result ? (
           <RunResults result={result} />
+        ) : runQuery.isError ? (
+          <p role="alert" className="text-sm text-red-600">
+            Could not load the results.{" "}
+            <button onClick={() => runQuery.refetch()} className="underline">
+              Reload results
+            </button>
+          </p>
         ) : (
           <p className="text-sm text-neutral-500">Loading results...</p>
         ))}

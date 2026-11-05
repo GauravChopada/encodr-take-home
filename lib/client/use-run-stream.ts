@@ -84,6 +84,7 @@ export function useRunStream(runId: string | null, onTerminal?: () => void): Run
 
     const controller = new AbortController();
     let terminal = false;
+    let attempt = 0; // consecutive failed connection attempts, for backoff
 
     fetchEventSource(`/api/runs/${runId}/events`, {
       signal: controller.signal,
@@ -103,6 +104,7 @@ export function useRunStream(runId: string | null, onTerminal?: () => void): Run
         if (controller.signal.aborted) return;
         const event = parseRunEvent(message.data);
         if (!event) return; // ignore a malformed frame rather than crash the stream
+        attempt = 0; // events are flowing again
         dispatch({ type: "event", event, id: Number(message.id) });
         if (isTerminalStage(event.stage) && !terminal) {
           terminal = true;
@@ -118,7 +120,9 @@ export function useRunStream(runId: string | null, onTerminal?: () => void): Run
       onerror(err) {
         if (err instanceof FatalStreamError) throw err;
         dispatch({ type: "connection", connected: false });
-        return 1000;
+        const delay = Math.min(1000 * 2 ** attempt, 10_000); // 1s, 2s, 4s ... capped at 10s
+        attempt += 1;
+        return delay;
       },
     }).catch((err: unknown) => {
       if (controller.signal.aborted) return;
